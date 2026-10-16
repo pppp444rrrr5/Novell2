@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Дело о хрустальном мотыльке</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: Georgia, 'Times New Roman', serif;
+  background: #1a1410;
+  color: #f3e9d2;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#bg {
+  position: fixed;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transition: opacity 0.6s ease;
+  z-index: 1;
+}
+
+#bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.char-left, .char-right {
+  position: fixed;
+  bottom: 0;
+  height: 78vh;
+  z-index: 3;
+  filter: drop-shadow(0 0 20px rgba(0,0,0,0.7));
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+.char-left  { left: 2%;  transform: translateY(20px); }
+.char-right { right: 2%; transform: translateY(20px); }
+.char-left.show, .char-right.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#text-box {
+  position: fixed;
+  bottom: 4%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 88%;
+  max-width: 820px;
+  background: rgba(15, 10, 6, 0.88);
+  border: 2px solid #b8934a;
+  border-radius: 12px;
+  padding: 28px 36px;
+  z-index: 5;
+  box-shadow: 0 0 40px rgba(0,0,0,0.8);
+  min-height: 180px;
+}
+
+#speaker {
+  color: #e8c47a;
+  font-size: 1.1em;
+  font-style: italic;
+  margin-bottom: 10px;
+  letter-spacing: 1px;
+  min-height: 1.2em;
+}
+
+#text {
+  font-size: 1.15em;
+  line-height: 1.65;
+  min-height: 80px;
+}
+
+#text b { color: #e8c47a; }
+
+#choices {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.choice {
+  background: rgba(184, 147, 74, 0.12);
+  border: 1px solid #b8934a;
+  color: #f3e9d2;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1em;
+  text-align: left;
+  transition: all 0.25s ease;
+}
+
+.choice:hover {
+  background: rgba(184, 147, 74, 0.35);
+  color: #fff;
+  transform: translateX(6px);
+}
+
+#loop-counter {
+  position: fixed;
+  top: 20px;
+  right: 25px;
+  background: rgba(139, 0, 0, 0.75);
+  color: #f3e9d2;
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: 0.95em;
+  letter-spacing: 1px;
+  z-index: 6;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+#loop-counter.show { opacity: 1; }
+
+#title-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: rgba(10, 6, 3, 0.9);
+  text-align: center;
+  padding: 40px;
+}
+
+#title-screen h1 {
+  font-size: 3em;
+  color: #e8c47a;
+  letter-spacing: 3px;
+  margin-bottom: 15px;
+  text-shadow: 0 0 30px rgba(232, 196, 122, 0.5);
+}
+
+#title-screen p {
+  font-size: 1.2em;
+  color: #c9b896;
+  margin-bottom: 40px;
+  font-style: italic;
+}
+
+#start-btn {
+  background: transparent;
+  border: 2px solid #b8934a;
+  color: #e8c47a;
+  padding: 16px 50px;
+  font-size: 1.2em;
+  font-family: inherit;
+  letter-spacing: 3px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+#start-btn:hover {
+  background: rgba(184, 147, 74, 0.2);
+  box-shadow: 0 0 30px rgba(184, 147, 74, 0.6);
+}
+</style>
+</head>
+<body>
+
+<div id="bg"></div>
+<img id="char-left"  class="char-left"  alt="">
+<img id="char-right" class="char-right" alt="">
+<div id="loop-counter"></div>
+
+<div id="title-screen">
+  <h1>ХРУСТАЛЬНЫЙ МОТЫЛЁК</h1>
+  <p>Детективная новелла с элементами временной петли</p>
+  <button id="start-btn">НАЧАТЬ ИСТОРИЮ</button>
+</div>
+
+<div id="text-box" style="display:none;">
+  <div id="speaker"></div>
+  <div id="text"></div>
+  <div id="choices"></div>
+</div>
+
+<script>
+/* ============================================================
+   СОСТОЯНИЕ
+   ============================================================ */
+let state = {};
+
+function resetState() {
+  state = {
+    loop: 1,
+    knowsGear: false,
+    trustPolina: 0,
+  };
+  document.getElementById('loop-counter').classList.remove('show');
+}
+
+/* ============================================================
+   ОТРИСОВКА
+   ============================================================ */
+function setBG(file) {
+  const bg = document.getElementById('bg');
+  bg.style.opacity = 0;
+  setTimeout(() => {
+    bg.style.backgroundImage = `url('images/backgrounds/${file}')`;
+    bg.style.opacity = 1;
+  }, 300);
+}
+
+function setChar(side, file) {
+  const el = document.getElementById(side === 'left' ? 'char-left' : 'char-right');
+  if (!file) {
+    el.classList.remove('show');
+    setTimeout(() => { el.src = ''; }, 400);
+    return;
+  }
+  el.src = `images/characters/${file}`;
+  el.classList.add('show');
+}
+
+function clearChars() {
+  setChar('left', null);
+  setChar('right', null);
+}
+
+function setSpeaker(name) {
+  document.getElementById('speaker').textContent = name || '';
+}
+
+function setText(html) {
+  document.getElementById('text').innerHTML = html;
+}
+
+function setChoices(arr) {
+  const box = document.getElementById('choices');
+  box.innerHTML = '';
+  arr.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'choice';
+    b.textContent = c.text;
+    b.onclick = c.action;
+    box.appendChild(b);
+  });
+}
+
+function showLoop(n) {
+  const el = document.getElementById('loop-counter');
+  if (n > 1) {
+    el.textContent = `Петля №${n}`;
+    el.classList.add('show');
+  } else {
+    el.classList.remove('show');
+  }
+}
+
+/* ============================================================
+   СЦЕНЫ
+   ============================================================ */
+
+function sceneStart() {
+  setBG('bg_workshop.png');
+  clearChars();
+  setSpeaker('');
+  setText(`
+    Дождь барабанит по витражам музея-усадьбы «Гнездо Сойки».<br><br>
+    Вы, <b>Артур Пенроуз</b>, реставратор старинных часов, приехали сюда
+    лишь заменить пружину в напольных часах. Но судьба распорядилась иначе.<br><br>
+    В главном зале — толпа: директор, охрана, журналисты.
+    На бархатной подушке под стеклом лежит фарфоровая статуэтка
+    «Хрустальный мотылёк» — гордость коллекции.
+  `);
+  setChoices([
+    { text: '→ Осмотреть зал',         action: sceneOsmotr },
+    { text: '→ Заговорить с Полиной',  action: scenePolinaTalk },
+  ]);
+}
+
+function sceneOsmotr() {
+  setBG('bg_hall_day.png');
+  setChar('left', 'arthur_neutral.png');
+  setChar('right', 'guard.png');
+  setSpeaker('Артур');
+  let txt = `
+    Вы достаёте лупу. Витрина цела, замок не взломан.
+    Рядом дремлет старик-охранник Барнаби с фонарём.<br><br>
+    Под ковром у стены что-то блестит — маленькая металлическая шестерёнка.
+  `;
+  if (!state.knowsGear) {
+    state.knowsGear = true;
+    txt += `
+      <br><br>Вы поднимаете её. Странно… Она похожа на деталь музыкального
+      механизма. Вы точно видели такую вчера, когда чинили шкатулку
+      в соседнем зале.
+    `;
+  }
+  setText(txt);
+  setChoices([
+    { text: '→ Дальше (часы бьют полночь)', action: sceneLoopStart },
+    { text: '→ Поговорить с Полиной',       action: scenePolinaTalk },
+  ]);
+}
+
+function scenePolinaTalk() {
+  setBG('bg_hall_day.png');
+  setChar('left', 'arthur_neutral.png');
+  setChar('right', 'polina_worried.png');
+  setSpeaker('Полина');
+  setText(`
+    — Вы ведь реставратор? — шепчет она. — Помогите…
+    Полиция приедет только через час. А гроза… гроза оборвала все дороги.
+  `);
+  setChoices([
+    { text: '→ Спросить, почему она так спокойна', action: scenePolinaCalm },
+    { text: '→ Осмотреть зал',                     action: sceneOsmotr },
+  ]);
+}
+
+function scenePolinaCalm() {
+  state.trustPolina++;
+  setBG('bg_rain_window.png');
+  clearChars();
+  setChar('right', 'polina_neutral.png');
+  setSpeaker('Полина');
+  setText(`
+    — Спокойна? — Полина горько усмехается. — Я просто знаю,
+    что статуэтка вернётся. Она ведь… она всегда возвращается.<br><br>
+    Вы не успеваете спросить, что это значит. Свет гаснет.
+  `);
+  setChoices([
+    { text: '→ ...', action: sceneLoopStart },
+  ]);
+}
+
+function sceneLoopStart() {
+  state.loop++;
+  showLoop(state.loop);
+  setBG('bg_dark_museum.png');
+  clearChars();
+
+  if (state.loop === 2) {
+    setSpeaker('');
+    setText(`
+      Темнота. Грохот. Когда аварийные лампы вспыхивают —
+      витрина пуста. На полу лишь осколок стекла.<br><br>
+      Вы хотите что-то сказать, но мир кружится…
+    `);
+  } else {
+    setSpeaker('Артур');
+    setText(`
+      Вы уже знаете этот миг. Свет сейчас погаснет.
+      Статуэтка исчезнет. И всё начнётся заново.<br><br>
+      <i style="color:#c94a4a;">Петля номер ${state.loop}.</i>
+    `);
+  }
+
+  setTimeout(() => {
+    if (state.loop >= 5) {
+      setChoices([
+        { text: '→ Хватит. Пора подумать.', action: sceneSolution },
+      ]);
+    } else {
+      setChoices([
+        { text: '→ Очнуться заново', action: sceneAwake },
+      ]);
+    }
+  }, 900);
+}
+
+function sceneAwake() {
+  setBG('bg_hall_day.png');
+  clearChars();
+  setSpeaker('');
+  setText(`
+    Вы приходите в себя за пять минут до полуночи. Всё повторяется.
+    Но вы уже знаете чуть больше.
+  `);
+  const choices = [
+    { text: '→ Крикнуть, что свет погаснет', action: sceneCry },
+    { text: '→ Встать прямо у витрины',      action: sceneNearDisplay },
+  ];
+  if (state.knowsGear) {
+    choices.push({ text: '→ Проверить потайную дверь', action: sceneHiddenDoor });
+  }
+  choices.push({ text: '→ Поговорить с Полиной', action: scenePolinaTalk });
+  setChoices(choices);
+}
+
+function sceneCry() {
+  setBG('bg_crowd_dark.png');
+  clearChars();
+  setChar('right', 'director.png');
+  setSpeaker('Артур');
+  setText(`
+    — Свет сейчас погаснет! — кричите вы.<br><br>
+    Все оборачиваются. Директор мистер Хартли хмурится.
+    Охрана делает шаг к вам.<br><br>
+    Свет гаснет. Статуэтка исчезает. Вы снова теряете сознание.
+  `);
+  setChoices([{ text: '→ Петля', action: sceneLoopStart }]);
+}
+
+function sceneNearDisplay() {
+  setBG('bg_display_hall.png');
+  clearChars();
+  setChar('left', 'arthur_surprised.png');
+  setSpeaker('Артур');
+  setText(`
+    Вы встаёте прямо перед витриной, готовый схватить вора за руку.<br><br>
+    Темнота. Вы хватаете воздух.<br>
+    Когда свет возвращается — статуэтки нет.
+    Вы даже не заметили движения.
+  `);
+  setChoices([{ text: '→ Петля', action: sceneLoopStart }]);
+}
+
+function sceneHiddenDoor() {
+  setBG('bg_hidden_door.png');
+  clearChars();
+  setSpeaker('Артур');
+  setText(`
+    Вы отгибаете гобелен за спиной директора. Там — узкая дверца,
+    почти сливающаяся со стеной. Петли смазаны. Замок открыт.<br><br>
+    Вы понимаете: вор выходил отсюда. И шестерёнка — от замка этой двери.
+  `);
+  setChoices([
+    { text: '→ Дождаться полуночи',            action: sceneLoopStart },
+    { text: '→ Осмотреть старинный зал',       action: sceneHallVintage },
+  ]);
+}
+
+function sceneHallVintage() {
+  setBG('bg_hall_vintage.png');
+  clearChars();
+  setChar('left', 'arthur_neutral.png');
+  setSpeaker('Артур');
+  setText(`
+    Вы заходите в старинный зал с витражом. Здесь тихо, пахнет пылью и воском.<br><br>
+    На столе — забытая книга. В ней запись: «Хрустальный мотылёк.
+    Принадлежал семье Гринвуд. Продан музею в 1962 году».<br><br>
+    Вы понимаете: статуэтка — семейная реликвия.
+    И кто-то очень хочет вернуть её домой.
+  `);
+  setChoices([{ text: '→ Вернуться в главный зал', action: sceneLoopStart }]);
+}
+
+function sceneSolution() {
+  setBG('bg_dialogue.png');
+  setChar('left', 'arthur_neutral.png');
+  setChar('right', 'polina_worried.png');
+  setSpeaker('Артур');
+  setText(`
+    Вы больше не бежите к витрине. Вы идёте к Полине и тихо говорите:<br><br>
+    — Мисс, ваш дедушка оставил вам не только долги, но и одну
+    очень редкую вещь. Вы хотели вернуть её домой — как память.
+    Но боялись, что подделку заметят. Поэтому решили устроить кражу.
+  `);
+  setChoices([{ text: '→ Продолжить', action: sceneSolution2 }]);
+}
+
+function sceneSolution2() {
+  setChar('right', 'polina_crying.png');
+  setSpeaker('Полина');
+  setText(`
+    Полина бледнеет.<br><br>
+    — Откуда вы…<br><br>
+    — Ваша музыкальная шкатулка сломана, — вы протягиваете шестерёнку. —
+    Вы взяли деталь из неё, чтобы починить замок потайной двери.
+    Но шестерёнка выпала.<br><br>
+    Полина плачет и признаётся: статуэтка — семейная реликвия,
+    которую её семья была вынуждена продать музею.
+  `);
+  setChoices([
+    { text: '→ Предложить решение',    action: sceneGoodEnd },
+    { text: '→ Сдать её директору',    action: sceneAltEnd },
+  ]);
+}
+
+function sceneGoodEnd() {
+  setBG('bg_sunrise.png');
+  clearChars();
+  setChar('left', 'arthur_smile.png');
+  setChar('right', 'polina_neutral.png');
+  setSpeaker('Артур');
+  setText(`
+    Вы улыбаетесь.<br><br>
+    — Мы не будем ничего скрывать. Но и разрушать чью-то память —
+    не выход. Вот что мы сделаем…<br><br>
+    Вы возвращаете оригинал на место. Полина официально заявляет,
+    что статуэтка нуждается в реставрации, и передаёт её вам.
+    Вы оставляете в основании крошечный гравированный автограф
+    её деда — теперь это часть истории. А для музея Полина
+    с разрешения директора делает «образовательный макет».<br><br>
+    Башенные часы бьют полночь. Время больше не сбрасывается.<br>
+    Гроза закончилась. Над Гринвудом встаёт солнце.<br><br>
+    Вы выходите на крыльцо, вдыхаете влажный воздух и улыбаетесь:
+    сегодня вы починили не только часы, но и чью-то судьбу.<br><br>
+    <b style="font-size:1.3em;">КОНЕЦ</b>
+  `);
+  setChoices([
+    { text: '↻ Сыграть заново', action: () => {
+      resetState();
+      document.getElementById('title-screen').style.display = 'flex';
+      document.getElementById('text-box').style.display = 'none';
+    }},
+  ]);
+}
+
+function sceneAltEnd() {
+  setBG('bg_hall_day.png');
+  clearChars();
+  setChar('left', 'arthur_neutral.png');
+  setChar('right', 'director.png');
+  setSpeaker('Артур');
+  setText(`
+    Вы вздыхаете и подзываете директора.<br><br>
+    — Мистер Хартли, боюсь, у нас деликатная ситуация…<br><br>
+    Полина опускает глаза. Директор хмурится, но, выслушав всё,
+    неожиданно смягчается:<br><br>
+    — Знаете… моя бабушка тоже когда-то продала семейную вещь. Я понимаю.<br><br>
+    Он предлагает компромисс: статуэтка остаётся в музее,
+    но на табличке появится имя деда Полины — как дарителя.
+    Полина плачет, но кивает.<br><br>
+    Время больше не сбрасывается.<br><br>
+    <b style="font-size:1.3em;">КОНЕЦ</b>
+  `);
+  setChoices([
+    { text: '↻ Сыграть заново', action: () => {
+      resetState();
+      document.getElementById('title-screen').style.display = 'flex';
+      document.getElementById('text-box').style.display = 'none';
+    }},
+  ]);
+}
+
+/* ============================================================
+   СТАРТ
+   ============================================================ */
+document.getElementById('start-btn').onclick = () => {
+  resetState();
+  document.getElementById('title-screen').style.display = 'none';
+  document.getElementById('text-box').style.display = 'block';
+  sceneStart();
+};
+</script>
+</body>
+</html>
